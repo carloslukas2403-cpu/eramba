@@ -22,28 +22,32 @@ if [[ -n "${PORT:-}" ]]; then
   done
 fi
 
-# 4) Encontrar ROOT real (busca config/app.php)
-APP_PHP="$(find / -maxdepth 6 -type f -path '*/config/app.php' 2>/dev/null | head -n 1 || true)"
-if [[ -z "${APP_PHP}" ]]; then
-  echo "==> ERROR: Could not find config/app.php (can't locate Eramba root)"
+# 4) Encontrar ROOT REAL de CakePHP (buscando bin/cake)
+BIN_CAKE="$(find / -maxdepth 7 -type f -path '*/bin/cake' 2>/dev/null | head -n 1 || true)"
+
+if [[ -z "${BIN_CAKE}" ]]; then
+  echo "==> ERROR: Could not find bin/cake (CakePHP root not found)"
+  echo "==> FYI: found config/app.php at:"
+  find / -maxdepth 7 -type f -path '*/config/app.php' 2>/dev/null | head -n 5 || true
 else
-  ROOT="$(dirname "$(dirname "$APP_PHP")")"
-  echo "==> Detected ROOT: $ROOT"
+  ROOT="$(dirname "$(dirname "$BIN_CAKE")")"
+  echo "==> Detected CakePHP ROOT: $ROOT"
   echo "==> Config dir listing:"
   ls -la "$ROOT/config" || true
 
-  # 5) Crear app_local.php SIEMPRE si falta (sin composer)
+  # 5) Crear app_local.php en CakePHP ROOT
   if [[ ! -f "$ROOT/config/app_local.php" ]]; then
-    echo "==> app_local.php missing. Creating minimal app_local.php ..."
+    echo "==> app_local.php missing in CakePHP root. Creating..."
     cat > "$ROOT/config/app_local.php" <<'PHP'
 <?php
-// Minimal app_local.php created by entrypoint to satisfy CakePHP/Eramba boot.
-// You can later configure DB via installer or edit this file as needed.
+// Minimal app_local.php created by entrypoint.
+// Real configuration can be completed via installer / env settings.
 return [];
 PHP
-    echo "==> app_local.php created."
+    chown www-data:www-data "$ROOT/config/app_local.php" || true
+    echo "==> app_local.php created at $ROOT/config/app_local.php"
   else
-    echo "==> app_local.php already exists."
+    echo "==> app_local.php already exists in CakePHP root."
   fi
 fi
 
