@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 echo "==> Fixing Apache MPM modules (ensure only one is enabled)"
 
-# Apagar todos (por si acaso)
 a2dismod -f mpm_event mpm_worker mpm_prefork >/dev/null 2>&1 || true
+a2enmod  mpm_prefork >/dev/null 2>&1 || true
 
-# Encender SOLO prefork
-a2enmod mpm_prefork >/dev/null 2>&1 || true
+echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf
+a2enconf servername >/dev/null 2>&1 || true
 
-# Verificación rápida (no mata el contenedor si falla)
-apache2ctl -t || true
+apache2ctl -t
 
-# Ejecutar el entrypoint/cmd original del contenedor
-if [ -x /entrypoint.sh ]; then
-  exec /entrypoint.sh "$@"
+# Intentar entrypoint original (muchas imágenes lo tienen)
+if [[ -x /entrypoint.sh ]]; then
+  echo "==> Found /entrypoint.sh, running it"
+  exec /entrypoint.sh
 fi
 
-exec "$@"
+# Si no existe, arrancar Apache
+echo "==> /entrypoint.sh not found. Starting Apache in foreground"
+exec apache2ctl -D FOREGROUND
