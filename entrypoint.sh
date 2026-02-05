@@ -22,32 +22,40 @@ if [[ -n "${PORT:-}" ]]; then
   done
 fi
 
-# 4) Encontrar ROOT REAL de CakePHP (buscando bin/cake)
-BIN_CAKE="$(find / -maxdepth 7 -type f -path '*/bin/cake' 2>/dev/null | head -n 1 || true)"
+# 4) Encontrar ROOT REAL de la APP WEB (buscando app/webroot/index.php)
+WEBROOT_INDEX="$(find /var/www/eramba -maxdepth 7 -type f -path '*/app/webroot/index.php' 2>/dev/null | head -n 1 || true)"
 
-if [[ -z "${BIN_CAKE}" ]]; then
-  echo "==> ERROR: Could not find bin/cake (CakePHP root not found)"
-  echo "==> FYI: found config/app.php at:"
-  find / -maxdepth 7 -type f -path '*/config/app.php' 2>/dev/null | head -n 5 || true
+if [[ -z "${WEBROOT_INDEX}" ]]; then
+  echo "==> ERROR: Could not find */app/webroot/index.php under /var/www/eramba"
+  echo "==> Candidates (index.php found):"
+  find /var/www/eramba -maxdepth 9 -type f -name 'index.php' 2>/dev/null | head -n 20 || true
 else
-  ROOT="$(dirname "$(dirname "$BIN_CAKE")")"
-  echo "==> Detected CakePHP ROOT: $ROOT"
+  # WEBROOT_INDEX = .../app/webroot/index.php
+  # ROOT = ... (subimos 3 niveles)
+  ROOT="$(dirname "$(dirname "$(dirname "$WEBROOT_INDEX")")")"
+
+  echo "==> Detected APP ROOT: $ROOT"
   echo "==> Config dir listing:"
   ls -la "$ROOT/config" || true
 
-  # 5) Crear app_local.php en CakePHP ROOT
+  # 5) Crear app_local.php en el ROOT correcto
   if [[ ! -f "$ROOT/config/app_local.php" ]]; then
-    echo "==> app_local.php missing in CakePHP root. Creating..."
-    cat > "$ROOT/config/app_local.php" <<'PHP'
+    echo "==> app_local.php missing in APP ROOT. Creating..."
+
+    if [[ -f "$ROOT/config/app_local.example.php" ]]; then
+      cp "$ROOT/config/app_local.example.php" "$ROOT/config/app_local.php"
+      echo "==> app_local.php created from app_local.example.php"
+    else
+      cat > "$ROOT/config/app_local.php" <<'PHP'
 <?php
-// Minimal app_local.php created by entrypoint.
-// Real configuration can be completed via installer / env settings.
 return [];
 PHP
+      echo "==> app_local.php created (minimal)"
+    fi
+
     chown www-data:www-data "$ROOT/config/app_local.php" || true
-    echo "==> app_local.php created at $ROOT/config/app_local.php"
   else
-    echo "==> app_local.php already exists in CakePHP root."
+    echo "==> app_local.php already exists in APP ROOT."
   fi
 fi
 
