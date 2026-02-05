@@ -17,4 +17,4 @@ a2enconf servername || true
 apache2ctl -t
 
 # 3) Ejecutar el comando original del contenedor
-exec "$@"
+exec apache2ctl -D FOREGROUND
