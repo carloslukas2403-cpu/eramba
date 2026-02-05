@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# 1) Apagar MPMs a nivel de symlinks (más fuerte que a2dismod)
-rm -f /etc/apache2/mods-enabled/mpm_event.* || true
-rm -f /etc/apache2/mods-enabled/mpm_worker.* || true
-rm -f /etc/apache2/mods-enabled/mpm_prefork.* || true
+# 1) Asegurar MPM prefork (mejor que symlinks “a mano”)
+a2dismod -f mpm_event mpm_worker >/dev/null 2>&1 || true
+a2enmod  mpm_prefork >/dev/null 2>&1 || true
 
-# 2) Encender solo prefork
-ln -s /etc/apache2/mods-available/mpm_prefork.load /etc/apache2/mods-enabled/mpm_prefork.load || true
-ln -s /etc/apache2/mods-available/mpm_prefork.conf /etc/apache2/mods-enabled/mpm_prefork.conf || true
-
-# (Opcional) evitar warning ServerName
+# 2) Evitar warning ServerName
 echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf
-a2enconf servername || true
+a2enconf servername >/dev/null 2>&1 || true
 
+# 3) Railway/PaaS: escuchar en $PORT si existe
+if [[ -n "${PORT:-}" ]]; then
+  # ports.conf
+  sed -ri "s/^\s*Listen\s+80\s*$/Listen ${PORT}/" /etc/apache2/ports.conf || true
+
+  # vhosts (típico 000-default.conf u otros)
+  for f in /etc/apache2/sites-available/*.conf; do
+    sed -ri "s/<VirtualHost \*:80>/<VirtualHost *:${PORT}>/g" "$f" || true
+  done
+fi
+
+# 4) Validar y arrancar con el CMD original de la imagen
 apache2ctl -t
+exec "$@"
 
-# 3) Ejecutar el comando original del contenedor
-exec apache2ctl -D FOREGROUND
